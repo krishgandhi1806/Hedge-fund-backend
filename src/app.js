@@ -20,9 +20,9 @@ app.use(express.static("public"));
 // For performing CRUD operations on Cookies
 app.use(cookieParser());
 
-app.get("/", (req, res)=>{
-    return res.send("Hellow WOrld");
-})
+// Importing routes
+import  userRoutes from './routes/user.route.js';
+app.use("/api/v1/users",  userRoutes)
 
 
 export {app};

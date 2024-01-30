@@ -1,1 +1,1 @@
-export const {DB_NAME}= "Hedge_Fund"
+export const DB_NAME= "HedgeFund"
