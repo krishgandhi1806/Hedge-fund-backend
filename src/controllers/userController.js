@@ -2,10 +2,13 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/apiError.js";
 import { ApiResponse } from "../utils/apiResponse.js";
 import { User } from "../models/user.model.js";
+import { Passbook } from "../models/passbook.model.js";
+import { Transaction } from "../models/transaction.model.js";
 
 import otpGenerator from "otp-generator";
 import nodemailer from "nodemailer";
 import bcrypt from "bcrypt";
+import jwt, {decode} from "jsonwebtoken";
 
 
 
@@ -50,7 +53,7 @@ export const registerUser= asyncHandler(async(req, res)=>{
         throw new ApiError(409, "User with this email already exists");
     }
 
-    const otp= otpGenerator.generate(6, { upperCaseAlphabets: false, specialChars: false });
+    // const otp= otpGenerator.generate(6, { upperCaseAlphabets: false, specialChars: false });
     // Create the user
     const user= await User.create({
         fullName,
@@ -209,7 +212,8 @@ export const verifyEMail= asyncHandler(async(req, res)=>{
                 isVerified: true
             },
             $unset:{
-                otp
+                otp,
+                otpExpiration
             }
         },
         {
@@ -228,4 +232,193 @@ export const verifyEMail= asyncHandler(async(req, res)=>{
         throw new ApiError(404, "Otp Expired! Please request again");
     }
     
+})
+
+export const changePassword= asyncHandler(async(req, res)=>{
+    const {currentPassword, newPassword}= req.body;
+    console.log(currentPassword, newPassword);
+    const user= await User.findById(req.user._id);
+    console.log(user);
+    const validCurrentPass= await user.isPasswordCorrect(currentPassword);
+
+    if(!validCurrentPass){
+        throw new ApiError(404, "Invalid Current Password!");
+    }
+
+    const newUser= await User.findByIdAndUpdate(
+        user._id,
+        { 
+            $set: {
+                password: await bcrypt.hash(newPassword, 10)
+            }
+        },
+        {
+            new: true
+        }
+        ).select("-password -refreshToken");
+
+        return res.status(200).json(
+            new ApiResponse(200, {newUser}, "Password reset successfully")
+        )
+})
+
+export const forgotPassword= asyncHandler(async(req, res)=>{
+    const {email}= req.body;
+
+    const user= await User.findOne({email});
+    if(!user){
+        throw new ApiError("No user found");
+    }
+
+    const transporter= nodemailer.createTransport({
+        host: process.env.MAILTRAP_HOST,
+        port: process.env.MAILTRAP_PORT,
+        auth: {
+          user: process.env.MAILTRAP_USERNAME,
+          pass: process.env.MAILTRAP_PASSWORD
+        }
+    });
+
+    const token= user.generatePasswordResetToken();
+    
+    const newUser= await User.findByIdAndUpdate(user._id,
+        {
+            $set:{
+                passwordResetToken: token
+            }
+        },
+        {
+            new: true
+        }).select("-password -refreshToken -passwordResetToken");
+
+    const resetLink = `${req.protocol}://${req.hostname}:${process.env.PORT}/resetPassword/${token}`;
+
+    const mailOptions = {
+        from: 'your_email@gmail.com',
+        to: email,
+        subject: 'Password Reset',
+        text: `Click on the following link to reset your password: ${resetLink}`,
+    };
+
+    const mailSent= await transporter.sendMail(mailOptions);
+
+    if(!mailSent){
+        throw new ApiError(500, "Internal Server Error");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, {newUser}, "Password reset mail sent succcessfully")
+    )
+})
+
+export const resetPassword= asyncHandler(async(req, res)=>{
+    const token= req.params.token;
+    console.log(token);
+    if(!token){
+        throw new ApiError(404, "Unauthorized Access");
+    }
+
+    const decodedToken= await jwt.verify(token, process.env.PASSWORD_TOKEN_SECRET);
+    // Check if provided token is valid or not
+    console.log(decodedToken);
+
+    const user= await User.findById(decodedToken._id);
+    const passwordResetToken= user.passwordResetToken;
+
+    if(!user){
+        throw new ApiError(404, "Invalid Token");
+    }
+
+    if(token!==user.passwordResetToken){
+        throw new ApiError(404, "Invalid Token");
+    }
+
+    const {newPassword, confirmPassword}= req.body;
+
+    if(newPassword!==confirmPassword){
+        throw new ApiError(400, "Passwords doesnt match");
+    }
+
+    const newUser= await User.findByIdAndUpdate(
+        user._id, 
+        {
+        $set:{
+            password: await bcrypt.hash(newPassword, 10),
+        },
+        $unset:{
+            passwordResetToken
+        }
+    },
+    {
+        new: true
+    }).select("-password -refreshToken");
+
+    if(!newUser){
+        throw new ApiError(500, "Internal Server Error");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, {newUser}, "Password Reset Successfully")
+    )
+
+})
+
+export const getUserDetails= asyncHandler(async (req, res)=>{
+    const user= req.user;
+    if(!user){
+        throw new ApiError(400,"Unauthorized Request");
+    }
+    const newUser= await User.findById(user._id).select("-password -refreshToken");
+
+    if(!newUser){
+        throw new ApiError(404,"User Not found");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, {newUser}, "User Details Retrieved Successfully")
+    )
+})
+
+// PassBook Handlers
+export const getPassbook = asyncHandler(async(req, res)=>{
+    const user= req.user;
+    const newUser= await User.findById(user._id);
+
+    const passbook= await Passbook.aggregate([
+        {
+          $match: {
+            "user": mongoose.Types.ObjectId(newUser._id)
+          }
+        },
+        {
+          $lookup: {
+            from: "transactions",
+            localField: "transactions",
+            foreignField: "_id",
+            as: "transactionDetails"
+          }
+        },
+        {
+          $unwind: "$transactionDetails"
+        },
+        {
+          $sort: {
+            "transactionDetails.createdAt": 1
+          }
+        },
+        {
+          $project: {
+            _id: 1,
+            user: 1,
+            transactionDate: "$transactionDetails.createdAt",
+            description: "$transactionDetails.description",
+            amount: "$transactionDetails.amount",
+            balance: "$transactionDetails.balance"
+          }
+        }
+      ]);
+
+      return res.status(200).json(
+        new ApiResponse(200, {passbook}, "User Passbook fetched successfully")
+      )
 })

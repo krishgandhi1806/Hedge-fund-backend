@@ -74,6 +74,9 @@ const userSchema= new Schema({
     },
     otpExpiration:{
         type: Date
+    },
+    passwordResetToken: {
+        type: String
     }
 }, {timestamps: true})
 
@@ -112,6 +115,19 @@ userSchema.methods.generateRefreshToken= function(){
         process.env.REFRESH_TOKEN_SECRET,
         {
             expiresIn: process.env.REFRESH_TOKEN_EXPIRY
+        }
+    )
+}
+
+userSchema.methods.generatePasswordResetToken= function(){
+    return jwt.sign(
+        {
+            _id: this._id,
+            email: this.email
+        },
+        process.env.PASSWORD_TOKEN_SECRET,
+        {
+            expiresIn: process.env.PASSWORD_TOKEN_EXPIRY
         }
     )
 }
