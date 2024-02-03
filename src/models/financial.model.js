@@ -15,6 +15,9 @@ const financialSchema= new Schema({
     },
     interestPaid: {
         type: Number
+    },
+    netLiability: {
+        type: Number,
     }
 }, {
     timestamps: true

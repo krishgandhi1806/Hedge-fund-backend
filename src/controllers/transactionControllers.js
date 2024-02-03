@@ -93,7 +93,7 @@ export const createTransaction= asyncHandler(async (req, res)=>{
                 user._id,
                 {
                     $set:{
-                    returnOnInvestment: roi + debit
+                    returnOnInvestment: user.returnOnInvestment
                     }
                 },{
                     new:true
@@ -102,14 +102,150 @@ export const createTransaction= asyncHandler(async (req, res)=>{
             throw new ApiError(500, "Cannot update User's Passbook");
         }
 
-        const  updatedFinancial= await Financial.findByIdAndUpdate(
+        const updatedFinancial= await Financial.findByIdAndUpdate(
             financialTable._id,
             {
                 $set:{
                     interestPaid: financialTable.interestPaid + debit
                 }
+            },
+            {
+                new: true
             }
         )
+
+        if(!updatedFinancial){
+            await Transaction.deleteOne({_id: transaction._id});
+            await User.findByIdAndUpdate(
+                user._id,
+                {
+                    $set:{
+                    returnOnInvestment: user.returnOnInvestment
+                    }
+                },{
+                    new:true
+                }
+            );
+
+            await Passbook.findByIdAndUpdate(
+                passbook._id,
+                {
+                    $set:{
+                        netAmount: user.investedAmount + user.returnOnInvestment
+                    }
+                }
+            );
+
+            throw new ApiError(500, "Cannot update Financials table");
+
+        }
+
+        
+    }
+
+    // -----------------------------------------------------------------------------------------------------------
+
+    // Principal Debit
+    else if(transactionStatus==2){
+        // const roi= user.returnOnInvestment- debit;
+        const investedAmount=  user.investedAmount - debit;
+        const roi= user.returnOnInvestment;
+        const netAmt= investedAmount+ roi;
+
+
+        transaction= await Transaction.create(
+            {
+                transactionStatus,
+                passbook: passbook._id,
+                debit,
+                credit:0,
+                netAmount: netAmt,
+                month: new Date.getMonth() +1
+            }
+        )
+
+        if(!transaction){
+            throw new ApiError(500, "Cannot create the transaction");
+        }
+
+        const updatedUser= await User.findByIdAndUpdate(
+            user._id,
+            {
+                $set:{
+                    investedAmount: investedAmount
+                }
+            },
+            {
+                new: true
+            }
+        ).select("-password -refreshToken");
+
+        if(!updatedUser){
+            await Transaction.deleteOne({_id: transaction._id});
+            throw new ApiError(500, "Cannot update User ");
+        }
+
+        const updatedPassbook = await Passbook.findByIdAndUpdate(
+            passbook._id,
+            {
+                $set:{
+                    netAmount: netAmt
+                }
+            }
+        );
+
+        if(!updatedPassbook){
+            await Transaction.deleteOne({_id: transaction._id});
+            await User.findByIdAndUpdate(
+                user._id,
+                {
+                    $set:{
+                    investedAmount: user.investedAmount
+                    }
+                },{
+                    new:true
+                }
+            )
+            throw new ApiError(500, "Cannot update User's Passbook");
+        }
+
+        const updatedFinancial= await Financial.findByIdAndUpdate(
+            financialTable._id,
+            {
+                $set:{
+                    newFundAdded: financialTable.newFundAdded - debit
+                }
+            },
+            {
+                new: true
+            }
+        )
+
+        if(!updatedFinancial){
+            await Transaction.deleteOne({_id: transaction._id});
+            await User.findByIdAndUpdate(
+                user._id,
+                {
+                    $set:{
+                    investedAmount: user.investedAmount+ debit
+                    }
+                },{
+                    new:true
+                }
+            )
+
+            await Passbook.findByIdAndUpdate(
+                passbook._id,
+                {
+                    $set:{
+                        netAmount: user.investedAmount + user.returnOnInvestment
+                    }
+                }
+            );
+
+            throw new ApiError(500, "Cannot update Financials table");
+
+        }
 
         
     }
