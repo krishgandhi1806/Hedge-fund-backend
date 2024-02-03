@@ -227,7 +227,7 @@ export const createTransaction= asyncHandler(async (req, res)=>{
                 user._id,
                 {
                     $set:{
-                    investedAmount: user.investedAmount+ debit
+                    investedAmount: user.investedAmount
                     }
                 },{
                     new:true
@@ -249,6 +249,217 @@ export const createTransaction= asyncHandler(async (req, res)=>{
 
         
     }
+
+    // -----------------------------------------------------------------------------------------------------------
+
+    // Interest Credit
+    if(transactionStatus==3){
+        const roi= user.returnOnInvestment+ credit;
+        const netAmt= user.investedAmount + roi;
+
+        transaction= await Transaction.create(
+            {
+                transactionStatus,
+                passbook: passbook._id,
+                debit:0,
+                credit: credit,
+                netAmount: netAmt,
+                month: new Date.getMonth() +1
+            }
+        )
+
+        if(!transaction){
+            throw new ApiError(500, "Cannot create the transaction");
+        }
+
+        const updatedUser= await User.findByIdAndUpdate(
+            user._id,
+            {
+                $set:{
+                    returnOnInvestment: roi
+                }
+            },
+            {
+                new: true
+            }
+        ).select("-password -refreshToken");
+
+        if(!updatedUser){
+            await Transaction.deleteOne({_id: transaction._id});
+            throw new ApiError(500, "Cannot update User ");
+        }
+
+        const updatedPassbook = await Passbook.findByIdAndUpdate(
+            passbook._id,
+            {
+                $set:{
+                    netAmount: netAmt
+                }
+            }
+        );
+
+        if(!updatedPassbook){
+            await Transaction.deleteOne({_id: transaction._id});
+            await User.findByIdAndUpdate(
+                user._id,
+                {
+                    $set:{
+                    returnOnInvestment: user.returnOnInvestment
+                    }
+                },{
+                    new:true
+                }
+            )
+            throw new ApiError(500, "Cannot update User's Passbook");
+        }
+
+        const updatedFinancial= await Financial.findByIdAndUpdate(
+            financialTable._id,
+            {
+                $set:{
+                    interestLiability: financialTable.interestLiability + credit
+                }
+            },
+            {
+                new: true
+            }
+        )
+
+        if(!updatedFinancial){
+            await Transaction.deleteOne({_id: transaction._id});
+            await User.findByIdAndUpdate(
+                user._id,
+                {
+                    $set:{
+                    returnOnInvestment: user.returnOnInvestment
+                    }
+                },{
+                    new:true
+                }
+            );
+
+            await Passbook.findByIdAndUpdate(
+                passbook._id,
+                {
+                    $set:{
+                        netAmount: user.investedAmount + user.returnOnInvestment
+                    }
+                }
+            );
+
+            throw new ApiError(500, "Cannot update Financials table");
+
+        }
+
+        
+    }
+
+    // -------------------------------------------------------------------------------------------------------
+    // Principal Credit
+    else if(transactionStatus==4){
+        // const roi= user.returnOnInvestment- debit;
+        const investedAmount=  user.investedAmount + credit;
+        const roi= user.returnOnInvestment;
+        const netAmt= investedAmount+ roi;
+
+
+        transaction= await Transaction.create(
+            {
+                transactionStatus,
+                passbook: passbook._id,
+                debit,
+                credit:0,
+                netAmount: netAmt,
+                month: new Date.getMonth() +1
+            }
+        )
+
+        if(!transaction){
+            throw new ApiError(500, "Cannot create the transaction");
+        }
+
+        const updatedUser= await User.findByIdAndUpdate(
+            user._id,
+            {
+                $set:{
+                    investedAmount: investedAmount
+                }
+            },
+            {
+                new: true
+            }
+        ).select("-password -refreshToken");
+
+        if(!updatedUser){
+            await Transaction.deleteOne({_id: transaction._id});
+            throw new ApiError(500, "Cannot update User ");
+        }
+
+        const updatedPassbook = await Passbook.findByIdAndUpdate(
+            passbook._id,
+            {
+                $set:{
+                    netAmount: netAmt
+                }
+            }
+        );
+
+        if(!updatedPassbook){
+            await Transaction.deleteOne({_id: transaction._id});
+            await User.findByIdAndUpdate(
+                user._id,
+                {
+                    $set:{
+                    investedAmount: user.investedAmount
+                    }
+                },{
+                    new:true
+                }
+            )
+            throw new ApiError(500, "Cannot update User's Passbook");
+        }
+
+        const updatedFinancial= await Financial.findByIdAndUpdate(
+            financialTable._id,
+            {
+                $set:{
+                    newFundAdded: financialTable.newFundAdded + credit
+                }
+            },
+            {
+                new: true
+            }
+        )
+
+        if(!updatedFinancial){
+            await Transaction.deleteOne({_id: transaction._id});
+            await User.findByIdAndUpdate(
+                user._id,
+                {
+                    $set:{
+                    investedAmount: user.investedAmount
+                    }
+                },{
+                    new:true
+                }
+            )
+
+            await Passbook.findByIdAndUpdate(
+                passbook._id,
+                {
+                    $set:{
+                        netAmount: user.investedAmount + user.returnOnInvestment
+                    }
+                }
+            );
+
+            throw new ApiError(500, "Cannot update Financials table");
+
+        }
+
+        
+    }
+
 
     return res.status(200).json(
         new ApiResponse(200, {transaction}, "Transaction created successfully" )
