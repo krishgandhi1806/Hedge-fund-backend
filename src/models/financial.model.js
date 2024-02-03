@@ -2,10 +2,10 @@ import mongoose, {Schema} from "mongoose";
 
 const financialSchema= new Schema({
     month:{
-        type: String
+        type: Number
     },
     year: {
-        type: String
+        type: Number
     },
     newFundAdded: {
         type: Number

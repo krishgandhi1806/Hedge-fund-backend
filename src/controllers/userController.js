@@ -4,6 +4,7 @@ import { ApiResponse } from "../utils/apiResponse.js";
 import { User } from "../models/user.model.js";
 import { Passbook } from "../models/passbook.model.js";
 import { Transaction } from "../models/transaction.model.js";
+import mongoose from "mongoose";
 
 import otpGenerator from "otp-generator";
 import nodemailer from "nodemailer";
@@ -379,15 +380,56 @@ export const getUserDetails= asyncHandler(async (req, res)=>{
     )
 })
 
+export const editDetails= asyncHandler(async (req, res)=>{
+    const user= req.user;
+    if(!user){
+        throw new ApiError(404, "Unauthorized Request");
+    }
+
+    const {fullName, gender, phone, address}= req.body;
+
+    const newUser= await User.findByIdAndUpdate(
+        user._id,
+        {
+            $set:{
+                fullName,
+                gender, 
+                phone, 
+                address
+            }
+        },
+        {
+            new: true
+        }
+    ).select("-password -refreshToken");
+
+    if(!newUser){
+        throw new ApiError(500, "Could not update Users details");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, {newUser}, "Details Updated Successfully")
+    )
+})
+
 // PassBook Handlers
 export const getPassbook = asyncHandler(async(req, res)=>{
     const user= req.user;
     const newUser= await User.findById(user._id);
 
-    const passbook= await Passbook.aggregate([
+    if(!newUser){
+        throw new ApiError(404, "No user Found");
+    }
+
+    const passbook= await Passbook.findOne({user: newUser._id}).select("-transactions");
+    if(!passbook){
+        throw new ApiError(404, "No PassBook Found");
+    }
+
+    const transactions= await Passbook.aggregate([
         {
           $match: {
-            "user": mongoose.Types.ObjectId(newUser._id)
+            "user": new mongoose.Types.ObjectId(newUser._id)
           }
         },
         {
@@ -409,16 +451,21 @@ export const getPassbook = asyncHandler(async(req, res)=>{
         {
           $project: {
             _id: 1,
+            passbook: "$$ROOT",
             user: 1,
             transactionDate: "$transactionDetails.createdAt",
-            description: "$transactionDetails.description",
-            amount: "$transactionDetails.amount",
-            balance: "$transactionDetails.balance"
+            transactionStatus: "$transactionDetails.transactionStatus",
+            debit: "$transactionDetails.debit",
+            credit: "$transactionDetails.credit",
+            netAmount: "$transactionDetails.netAmount",
+            month: "$transactionDetails.month",
           }
         }
       ]);
 
+
+      
       return res.status(200).json(
-        new ApiResponse(200, {passbook}, "User Passbook fetched successfully")
+        new ApiResponse(200, {passbook, transactions}, "User Passbook fetched successfully")
       )
 })

@@ -6,6 +6,10 @@ const transactionSchema= new Schema({
         enum: [1, 2, 3, 4],
         required: true
     },
+    passbook:{
+        type: Schema.Types.ObjectId,
+        ref: "Passbook"
+    },
     debit: {
         type: Number,
         required: true
