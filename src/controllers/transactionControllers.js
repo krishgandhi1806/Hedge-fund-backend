@@ -487,10 +487,17 @@ export const createTransaction= asyncHandler(async (req, res)=>{
     )
 });
 
+
+
 export const editTransaction= asyncHandler(async(req, res)=>{
     // We cannot edit the transaction status as it will disintegrate the whole database
 
     // We can only edit the debit and ccredit amounts
+
+    const isAdmin= req.user.role;
+    if(isAdmin!=="admin"){
+        throw(new ApiError(404, "Unauthorized Request"));
+    }
 
     const transactionId= req.params.transactionId;
     const transaction= await Transaction.findById(transactionId);
@@ -1026,4 +1033,41 @@ export const editTransaction= asyncHandler(async(req, res)=>{
         }
     }
 
+})
+
+
+export const getAllTransactions= asyncHandler(async(req, res)=>{
+    const isAdmin= req.user.role;
+    if(isAdmin!=="admin"){
+        throw new ApiError(404, "Unauthorized Request");
+    }
+
+    const transactions= await Transaction.find();
+
+    if(!transactions){
+        throw new ApiError(404, "Cannot fetch Transactions");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, {transactions}, "Successfully Fetched All Transactions!")
+    )
+})
+
+export const getSingleTransaction= asyncHandler(async (req, res)=>{
+
+    const isAdmin= req.user.role;
+    if(isAdmin!=="admin"){
+        throw new ApiError(404, "Unauthorized Request");
+    }
+
+    const transactionId= req.params.transactionId;
+    const transaction= await Transaction.findById(transactionId);
+
+    if(!transaction){
+        throw new ApiError(404, "No transaction found with this id");
+    }
+
+    return res.status(200).json(
+        new ApiResponse(200, {transaction}, "Transaction fetched successfully")
+    )
 })
