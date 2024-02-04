@@ -2,6 +2,7 @@ import { changeStatus, createPassBook, editUserDetails, getAllPassbooks, getAllU
 
 import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
+import { createTransaction } from "../controllers/transactionControllers.js";
 
 const router= Router();
 // Changing status from isActive false to true
@@ -20,5 +21,8 @@ router.route("/user/:userId")
 
 // Get All Passbooks
 router.route("/allPassbooks").get(verifyJWT, getAllPassbooks);
+
+// Creating transactions
+router.route("/transaction").post(verifyJWT, createTransaction);
 
 export default router;

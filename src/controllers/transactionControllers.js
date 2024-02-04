@@ -27,15 +27,16 @@ export const createTransaction= asyncHandler(async (req, res)=>{
     if(!passbook){
         throw new ApiError(404, "No passbook found");
     }
-
-    let financialTable= await Financial.findOne({month: new Date.getMonth() + 1});
+    const date= new Date().getMonth() + 1;
+    console.log(date);
+    let financialTable= await Financial.findOne({month: date});
     
     if(!financialTable){
         financialTable= await Financial.create({
             newFundAdded:0,
             interestLiability: 0,
             interestPaid: 0,
-            month: new Date.getMonth() + 1,
+            month: date,
             year:  new Date().getFullYear(),
         })
     }
@@ -53,7 +54,7 @@ export const createTransaction= asyncHandler(async (req, res)=>{
                 debit,
                 credit:0,
                 netAmount: netAmt,
-                month: new Date.getMonth() +1
+                month: date
             }
         )
 
@@ -160,7 +161,7 @@ export const createTransaction= asyncHandler(async (req, res)=>{
                 debit,
                 credit:0,
                 netAmount: netAmt,
-                month: new Date.getMonth() +1
+                month: date
             }
         )
 
@@ -264,7 +265,7 @@ export const createTransaction= asyncHandler(async (req, res)=>{
                 debit:0,
                 credit: credit,
                 netAmount: netAmt,
-                month: new Date.getMonth() +1
+                month: date
             }
         )
 
@@ -367,10 +368,10 @@ export const createTransaction= asyncHandler(async (req, res)=>{
             {
                 transactionStatus,
                 passbook: passbook._id,
-                debit,
-                credit:0,
+                debit:0,
+                credit,
                 netAmount: netAmt,
-                month: new Date.getMonth() +1
+                month: date
             }
         )
 
