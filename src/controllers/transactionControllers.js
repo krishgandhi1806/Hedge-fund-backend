@@ -29,7 +29,7 @@ export const createTransaction= asyncHandler(async (req, res)=>{
         throw new ApiError(404, "No passbook found");
     }
     const date= new Date().getMonth() + 1;
-    console.log(date);
+    // console.log(date);
     let financialTable= await Financial.findOne({month: date});
     
     if(!financialTable){
@@ -481,6 +481,10 @@ export const createTransaction= asyncHandler(async (req, res)=>{
         
     }
 
+    await Passbook.findByIdAndUpdate(passbook._id, {
+        $push: { transactions: transaction._id }
+    });
+
 
     return res.status(200).json(
         new ApiResponse(200, {transaction}, "Transaction created successfully" )
@@ -489,10 +493,12 @@ export const createTransaction= asyncHandler(async (req, res)=>{
 
 
 
+// Editing a transaction will result in disintegrating the whole database as the next transactions will be based on that edited transactions, so its not possible to edit a transaction.
+
 export const editTransaction= asyncHandler(async(req, res)=>{
     // We cannot edit the transaction status as it will disintegrate the whole database
 
-    // We can only edit the debit and ccredit amounts
+    // We can only edit the debit and credit amounts
 
     const isAdmin= req.user.role;
     if(isAdmin!=="admin"){
@@ -517,13 +523,14 @@ export const editTransaction= asyncHandler(async(req, res)=>{
         throw new ApiError(404, "No User Found");
     }
 
-    const financialTable= await Financial.findOne({month: date});
+    const month= transaction.month;
+    const financialTable= await Financial.findOne({month: month});
 
 
     if(!financialTable){
         throw new ApiError(404, "Financial Table cannot be fetched" );
     }
-
+    let updatedTransaction;
     let {debit, credit}= req.body;
     // Interest Debit
     if(transaction.transactionStatus===1){
@@ -532,7 +539,7 @@ export const editTransaction= asyncHandler(async(req, res)=>{
         const roi= user.returnOnInvestment + difference;
         const netAmt= user.investedAmount + roi;
 
-        const updatedTransaction= await Transaction.findByIdAndUpdate(
+        updatedTransaction= await Transaction.findByIdAndUpdate(
             transaction._id,
             {
                 $set:{
@@ -660,7 +667,7 @@ export const editTransaction= asyncHandler(async(req, res)=>{
         const roi= user.returnOnInvestment
         const netAmt= investedAmount + roi;
 
-        const updatedTransaction= await Transaction.findByIdAndUpdate(
+        updatedTransaction= await Transaction.findByIdAndUpdate(
             transaction._id,
             {
                 $set:{
@@ -787,7 +794,7 @@ export const editTransaction= asyncHandler(async(req, res)=>{
         const roi= user.returnOnInvestment - difference;
         const netAmt= user.investedAmount + roi;
 
-        const updatedTransaction= await Transaction.findByIdAndUpdate(
+        updatedTransaction= await Transaction.findByIdAndUpdate(
             transaction._id,
             {
                 $set:{
@@ -912,16 +919,22 @@ export const editTransaction= asyncHandler(async(req, res)=>{
         const difference= transaction.credit- credit; //It could be positive or negative
 
         const investedAmount=  user.investedAmount - difference;
+        console.log(investedAmount);
         const roi= user.returnOnInvestment
+        console.log(roi)
         const netAmt= investedAmount + roi;
+        console.log(netAmt);
 
-        const updatedTransaction= await Transaction.findByIdAndUpdate(
+        updatedTransaction= await Transaction.findByIdAndUpdate(
             transaction._id,
             {
                 $set:{
                     credit: credit,
                     netAmount: netAmt
                 }
+            },
+            {
+                new: true
             }
         )
 
@@ -1032,6 +1045,10 @@ export const editTransaction= asyncHandler(async(req, res)=>{
 
         }
     }
+
+    return res.status(200).json(
+        new ApiResponse(200, {updatedTransaction}, "Transaction Fetched Successfully!")
+    )
 
 })
 
