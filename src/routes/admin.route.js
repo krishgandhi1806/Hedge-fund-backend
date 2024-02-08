@@ -2,7 +2,7 @@ import { changeStatus, createPassBook, editUserDetails, getAllPassbooks, getAllU
 
 import { Router } from "express";
 import { verifyJWT } from "../middlewares/auth.middleware.js";
-import { createTransaction, editTransaction, getAllTransactions, getSingleTransaction } from "../controllers/transactionControllers.js";
+import { createTransaction, creditInterest, getAllTransactions, getSingleTransaction } from "../controllers/transactionControllers.js";
 
 const router= Router();
 // Changing status from isActive false to true
@@ -27,12 +27,15 @@ router.route("/transaction").post(verifyJWT, createTransaction);
 
 // UNTESTED ROUTES
 // Edit Transaction
-router.route("/transaction/:transactionId").post(verifyJWT, editTransaction);
+// router.route("/transaction/:transactionId").post(verifyJWT, editTransaction);
 
 // Get all transactions
 router.route("/transaction").get(verifyJWT, getAllTransactions);
 
 // Get Single transaction
 router.route("/transaction/:transactionId").get(verifyJWT, getSingleTransaction);
+
+// Credit Interest to all users at once
+router.route("/creditInterest").post(verifyJWT, creditInterest);
 
 export default router;
