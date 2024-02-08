@@ -3,7 +3,7 @@ import mongoose, {Schema} from "mongoose";
 const transactionSchema= new Schema({
     transactionStatus: {
         type: Number,
-        enum: [1, 2, 3, 4],
+        enum: [1, 2, 3, 4, 5, 6],
         required: true
     },
     passbook:{

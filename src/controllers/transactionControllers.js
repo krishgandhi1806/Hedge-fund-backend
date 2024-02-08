@@ -43,13 +43,15 @@ export const createTransaction= asyncHandler(async (req, res)=>{
     }
 
     let transaction;
-    // Interest Debit
-    if(transactionStatus==1){
-        if(user.returnOnInvestment<=0){
-            throw new ApiError(404, "ROI is already zero");
-        }
-        if(debit> user.returnOnInvestment){
-            throw new ApiError(404, "User don't have enough ROI to be debited");
+    // Interest Debit or mistake rectification debit user(transactionStatus===6)
+    if(transactionStatus===1 || transactionStatus===6){
+        if(transactionStatus===1){
+            if(user.returnOnInvestment<=0){
+                throw new ApiError(404, "ROI is already zero");
+            }
+            if(debit> user.returnOnInvestment){
+                throw new ApiError(404, "User don't have enough ROI to be debited");
+            }
         }
         const roi= user.returnOnInvestment- debit;
         const netAmt= user.investedAmount + roi;
@@ -267,9 +269,12 @@ export const createTransaction= asyncHandler(async (req, res)=>{
 
     // -----------------------------------------------------------------------------------------------------------
 
-    // Interest Credit
-    if(transactionStatus==3){
-        credit= (user.interestRate/100) * user.investedAmount;
+    // Interest Credit and mistake rectification credit user(transactionStatus===5)
+    if(transactionStatus===3 || transactionStatus===5){
+
+        if(transactionStatus===3){
+            credit= (user.interestRate/100) * user.investedAmount;
+        }
         if(credit===0){
             return res.status(200).json(
                 new ApiResponse(200, {}, "Principal amount is zero so interest hasn't been credited")
@@ -480,6 +485,41 @@ export const createTransaction= asyncHandler(async (req, res)=>{
 
         
     }
+
+    // // Mistake rectification transaction
+    // else if(transactionStatus===5){
+
+    //     if(!debit){
+    //         transaction= await Transaction.create(
+    //             {
+    //                 transactionStatus,
+    //                 passbook: passbook._id,
+    //                 debit:0,
+    //                 credit: credit,
+    //                 netAmount: netAmt,
+    //                 month: date
+    //             }
+    //         )
+    //     }
+    //     else{
+    //         transaction= await Transaction.create(
+    //             {
+    //                 transactionStatus,
+    //                 passbook: passbook._id,
+    //                 debit:debit,
+    //                 credit: 0,
+    //                 netAmount: netAmt,
+    //                 month: date
+    //             }
+    //         )
+    //     }
+
+    //     if(!transaction){
+    //         throw new ApiError(500, "Cannot create the transaction");
+    //     }
+
+
+    // }
 
     await Passbook.findByIdAndUpdate(passbook._id, {
         $push: { transactions: transaction._id }
